@@ -15,7 +15,6 @@
 
 // iniciar sesión como $> spark-shell --driver-memory 4g
 
-
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.ml.feature.StringIndexer
 import org.apache.spark.ml.recommendation.{ALS, ALSModel}
@@ -23,6 +22,8 @@ import org.apache.spark.ml.tuning.{CrossValidator,CrossValidatorModel}
 import org.apache.spark.ml.evaluation.RegressionEvaluator
 import org.apache.spark.ml.tuning.ParamGridBuilder
 import java.util.Calendar
+import java.sql.Timestamp
+import java.text.SimpleDateFormat
 
 
 val PATH="/home/usuario/Regresion/MiniProyecto1/"
@@ -43,23 +44,40 @@ val ratings = spark.read.textFile(PATH + ARCHIVO).map(parseRating).toDF()
   
 val dfCDsVinyl = ratings.na.drop()
 
-
-// Explorar los datos
+// Exploración de los datos
    
-println("Número total de filas: " + dfCDsVinyl.count())
-println("Primeras 5 filas:")
+println("Número total de registros: " + dfCDsVinyl.count())
+println("Primeros 5 registros:")
 dfCDsVinyl.show(5)
 println("Estructura del DataFrame:")
 dfCDsVinyl.printSchema()
 
-  
- // Realizar análisis exploratorio de los ratings
-    
-println("Resumen estadístico de la columna 'rating':")
+println("Resumen estadístico de Rating:")
 dfCDsVinyl.describe("rating").show()
 
+println("Número de votos por valor:")
+dfCDsVinyl.groupBy("rating").count().orderBy(desc("count")).withColumnRenamed("count", "cuenta").show()
+
+val MinMaxTime = dfCDsVinyl.agg(min("timestamp"),max("timestamp")).head()
+
+// Convertir el timestamp a formato de fecha
+val dateFormat = new SimpleDateFormat("dd-MM-yyyy hh:mm")
+val minFecha = new Timestamp(MinMaxTime.getLong(0) * 1000L) // Multiplicamos por 1000L porque Timestamp espera milisegundos
+val maxFecha = new Timestamp(MinMaxTime.getLong(1) * 1000L) // Multiplicamos por 1000L porque Timestamp espera milisegundos
+val minFechaStr = dateFormat.format(minFecha)
+val maxFechaStr = dateFormat.format(maxFecha)
+
+println("Mínimo valor de timestamp:" + MinMaxTime(0) + " -> " +  minFechaStr)
+println("Máximo valor de timestamp:" + MinMaxTime(1) + " -> " +  maxFechaStr)
+
+println("Número de productos (Item): " + dfCDsVinyl.select("item").distinct.count())
+println("Número de usuarios (User): " + dfCDsVinyl.select("user").distinct.count())
+
+
+// Particionado del Dataset
+
 // **** particionado para hacer las pruebas ****
-val Array(training, test) = dfCDsVinyl.randomSplit(Array(0.1, 0.05))
+val Array(training, test) = dfCDsVinyl.randomSplit(Array(0.005, 0.005))
 
 // **** particionado real ****
 // val Array(training, test) = dfCDsVinyl.randomSplit(Array(0.8, 0.2))
@@ -92,7 +110,7 @@ val model = cvmodel1.bestModel.asInstanceOf[ALSModel]
 
 //model.getRank
 println(model)
-model.write.overwrite().save("/home/usuario/Regresion/MiniProyecto1/modelo")
+model.write.overwrite().save("/home/usuario/Regresion/MiniProyecto1/modeloALS")
 
 
 model.setColdStartStrategy("drop")
@@ -100,3 +118,4 @@ val predictions = model.transform(test)
 
 val rmse = evaluator.evaluate(predictions)
 println(s"Root-mean-square error = $rmse")
+
