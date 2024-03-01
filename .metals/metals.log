@@ -398,3 +398,7 @@ error: C:\Users\chema\Documents\GitHub\TESCR\.metals\.tmp\.metals\.tmp\Main-1561
 2024.02.27 00:06:58 WARN  Could not find semantic tokens for: file:///C:/Users/chema/Documents/GitHub/TESCR/PrimeraParteSucio.scala
 2024.02.27 00:07:01 INFO  compiling tescr_bd2c96d2de (1 scala source)
 2024.02.27 00:07:01 INFO  time: compiled TESCR_bd2c96d2de in 0.6s
+2024.02.27 00:09:53 INFO  Shutting down server
+2024.02.27 00:09:53 INFO  shutting down Metals
+2024.02.27 00:09:53 INFO  Shut down connection with build server.
+2024.02.27 00:09:53 INFO  Exiting server
