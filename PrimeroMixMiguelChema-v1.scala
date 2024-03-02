@@ -106,7 +106,7 @@ indexadores.foreach { indexador =>
 
 
 
-val dfCDsVinylCorregido = dfCDsVinyl.select($"itemIdIndex".alias("itemId"), $"userIdIndex".alias("userId"), $"rating".alias("rating"), $"timestamp".alias("timestamp"))
+var dfCDsVinylCorregido = dfCDsVinyl.select($"itemIdIndex".alias("itemId"), $"userIdIndex".alias("userId"), $"rating".alias("rating"), $"timestamp".alias("timestamp"))
 dfCDsVinylCorregido.show()
 
 
@@ -115,46 +115,56 @@ dfCDsVinylCorregido.show()
 
 
 
-
+/*
 //algoritmo eliminar opiniones falsas y sesgadas-------------------
 
 
-//obtener todas las opiniones de cada usuario
-val valoresUnicosUsuario = dfCDsVinylCorregido.select("userId").distinct()
+println("Comienza comprobacion de los datos de los usuarios")
+val valoresUnicosUsuario = dfCDsVinylCorregido.select("userId").distinct().collect()
+val usuariosDiferentes=valoresUnicosUsuario.length
+var contador=0
 
-for (valorUnicoUsuario <- valoresUnicosUsuario) {
-      //println(valorUnicoUsuario.getClass)
-      println(valorUnicoUsuario.getDouble(0))
-
-
-
-
-      val dfPorValorUnico = dfCDsVinylCorregido.filter(col("userId") === valorUnicoUsuario.getDouble(0))
-
-      dfPorValorUnico.show()
-      val numeroFilas = dfPorValorUnico.count()
-      println(s"Número de filas en el DataFrame: $numeroFilas")*/
-    }
-
-
-//ordenarlas por timestamp de menor a mayor
-
-
-//calcular media de diferencia de timestamp entre cada opinion
-
-
-
-
-//evaluar si la mayoria son negativas o positivas
+//recorro diferentes usuarios
+for (fila <- valoresUnicosUsuario) {
+  println(s"Evaluando datos de: $contador / $usuariosDiferentes")
+  contador=contador+1
+  val valorUnicoDouble = fila.getDouble(0)
+  
+  //filtro opiniones de cada usuario
+  val dfFiltrado = dfCDsVinylCorregido.filter(col("userId") === valorUnicoDouble)
+  //cuantas opiniones han hecho
+  val filas=dfFiltrado.count()
+  //desviacion estandar de los timestamp de sus opiniones
+  val desviacionEstandar = dfFiltrado.agg(stddev("timestamp").alias("desviacion_estandar")).collect()(0).getAs[Double]("desviacion_estandar")
+  
+  
+  //condicional para eliminar datos si cumple condiciones
+  if(desviacionEstandar<31622400 && filas>50){
+    dfCDsVinylCorregido= dfCDsVinylCorregido.filter(col("userId") =!= valorUnicoDouble)
+    val numeroFilas = dfCDsVinylCorregido.count()
+    println(s"Se han eliminado los registros del usuario por no cumplir condicion 1. El número de filas en el DataFrame es: $numeroFilas")
+  }
 
 
+  //cuantas opiniones con cada rating han hecho
+  var cuentaOpiniones=dfFiltrado.groupBy("rating").count().orderBy(desc("count")).withColumnRenamed("count", "cuenta")
+  //convertimos en porcentaje
+  cuentaOpiniones=cuentaOpiniones.select(format_number((col("cuenta") / filas)*100, 2).alias("Resultado"))
+  //porcentaje opiniones rating 5
+  val primerValorPorcentaje = cuentaOpiniones.select("Resultado").first().getAs[String](0)
+  val valorDouble = primerValorPorcentaje.toDouble
+  
+  //condicional para eliminar datos si cumple condiciones
+  if(valorDouble>90 && filas>50 ){
+    dfCDsVinylCorregido= dfCDsVinylCorregido.filter(col("userId") =!= valorUnicoDouble)
+    val numeroFilas = dfCDsVinylCorregido.count()
+    println(s"Se han eliminado los registros del usuario por no cumplir condicion 2. El número de filas en el DataFrame es: $numeroFilas")
+  }
+
+}
 
 
-//obtener todas las opiniones de cada producto
-val valoresUnicosProducto = dfCDsVinylCorregido.select("itemId").distinct()
-
-
-//evaluar si tiene forma de C
+*/
 
 
 
@@ -162,13 +172,19 @@ val valoresUnicosProducto = dfCDsVinylCorregido.select("itemId").distinct()
 
 
 
-/*
+
+
+
+
+
+
+
+
 
 
 // Particionado del Dataset
 
-// **** particionado para hacer las pruebas ****
-//val Array(training, test, pruebas) = dfCDsVinylCorregido.randomSplit(Array(0.05, 0.025, 0.725))
+
 
 // **** particionado real ****
  val Array(training, test) = dfCDsVinylCorregido.randomSplit(Array(0.8, 0.2))
@@ -181,7 +197,7 @@ println("Conjunto de test guardado")
 val als = new ALS().setUserCol("userId").setItemCol("itemId").setRatingCol("rating")
 
 //val paramGrid = new ParamGridBuilder().addGrid(als.rank, Array(2,3,5)).addGrid(als.regParam, Array(0.01, 0.1,0.2)).addGrid(als.maxIter, Array(5,7,10)).build()
-val paramGrid = new ParamGridBuilder().addGrid(als.rank, Array(2,3)).addGrid(als.regParam, Array(0.01, 0.1)).addGrid(als.maxIter, Array(5,7)).build()
+val paramGrid = new ParamGridBuilder().addGrid(als.rank, Array(2,3)).addGrid(als.regParam, Array(0.01, 0.1)).addGrid(als.maxIter, Array(5,7)).addGrid(als.alpha, Array(0.01)).build()
 
 
 val evaluator = new RegressionEvaluator()
@@ -201,8 +217,11 @@ println(s"Fin: ${Calendar.getInstance.getTime}")
 
 val model = cvmodel1.bestModel.asInstanceOf[ALSModel]
 
-//model.getRank
-println(model)
+//println(s"Mejor valor para 'rank': ${model.rank}")
+//println(s"Mejor valor para 'maxIter': ${model.getOrDefault(model.maxIter)}")
+//println(s"Mejor valor para 'regParam': ${model.getRegParam}")
+//println(s"Mejor valor para 'alpha': ${model.getAlpha}")
+
 model.write.overwrite().save(PATH+"modeloALS")
 
 
