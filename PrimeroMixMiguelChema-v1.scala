@@ -168,13 +168,13 @@ val valoresUnicosProducto = dfCDsVinylCorregido.select("itemId").distinct()
 // Particionado del Dataset
 
 // **** particionado para hacer las pruebas ****
-//val Array(training, test) = dfCDsVinyl.randomSplit(Array(0.005, 0.005))
+//val Array(training, test, pruebas) = dfCDsVinylCorregido.randomSplit(Array(0.05, 0.025, 0.725))
 
 // **** particionado real ****
  val Array(training, test) = dfCDsVinylCorregido.randomSplit(Array(0.8, 0.2))
 
 
-test.write.csv(PATH+"conjunto-test")
+test.write.mode("overwrite").csv(PATH+"conjunto-test")
 println("Conjunto de test guardado")
 
 
