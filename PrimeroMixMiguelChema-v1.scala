@@ -174,7 +174,7 @@ val valoresUnicosProducto = dfCDsVinylCorregido.select("itemId").distinct()
  val Array(training, test) = dfCDsVinylCorregido.randomSplit(Array(0.8, 0.2))
 
 
-test.write.csv("/home/usuario/Regresion/conjunto-test")
+test.write.csv(PATH+"conjunto-test")
 println("Conjunto de test guardado")
 
 
@@ -203,7 +203,7 @@ val model = cvmodel1.bestModel.asInstanceOf[ALSModel]
 
 //model.getRank
 println(model)
-model.write.overwrite().save("/home/usuario/Regresion/modeloALS")
+model.write.overwrite().save(PATH+"modeloALS")
 
 
 model.setColdStartStrategy("drop")
