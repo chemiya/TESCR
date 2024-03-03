@@ -17,7 +17,8 @@
 // iniciar sesión como $> spark-shell --driver-memory 4g
 
 // Configuraciones iniciales
-// sc.setCheckpointDir("../checkpoint")
+sc.setCheckpointDir("checkpoint")
+sc.setLogLevel("ERROR")
 
 // Importación de módulos a usar
 import java.sql.Timestamp
@@ -32,7 +33,7 @@ import org.apache.spark.sql.SparkSession
 
 // Variables de ruta del archivo de datos
 val PATH = "/home/usuario/Regresion/"
-val ARCHIVO = "CDs_and_Vinyl.csv"
+val ARCHIVO = "CDs_and_Vinyl-10k.csv"
 
 
 // ----------------------------------------------------------------------------------------
@@ -139,9 +140,17 @@ dfCDsVinyl = dfCDsVinyl.
     withColumn("userId", col("userId").cast("Int"))
 
 // Estos son los "diccionarios" que se podrán usar para buscar user e item por sus id respectivos
-val dfUserLookup = dfCDsVinyl.select("user", "userId").distinct()
-val dfItemLookup = dfCDsVinyl.select("item", "itemId").distinct()
+dfCDsVinyl.
+    select("user", "userId").
+    distinct().
+    write.mode("overwrite").
+    csv(PATH + "dfUserLookup")
 
+dfCDsVinyl.
+    select("item", "itemId").
+    distinct().
+    write.mode("overwrite").
+    csv(PATH + "dfItemLookup")
 
 // NOTA: Si esta transformación va, hay que buscar una opción que no sea ciclo for!!!
 // (p.ej., filtros y agregaciones en Spark o Spark SQL)
@@ -194,8 +203,7 @@ for (fila <- valoresUnicosUsuario) {
 */
 
 var dfCDsVinylTransformado = dfCDsVinyl.
-    select("itemId", "userId", "rating").
-    repartition(100)
+    select("itemId", "userId", "rating", "timestamp")
 
 println("Conjunto de datos transformado:")
 dfCDsVinylTransformado.show(5)
@@ -214,7 +222,7 @@ println("\nCREACIÓN DE CONJUNTOS TRAINING Y TEST")
 // SCALE_FACTOR = .0025 resulta en un volumen de ~10k registros
 // Validación cruzada tarda cerca de
 
-val SCALE_FACTOR = .0025
+val SCALE_FACTOR = .8
 
 var training = dfCDsVinylTransformado.
     withColumn("ratingId", col("rating").cast("String")).
@@ -227,12 +235,30 @@ var training = dfCDsVinylTransformado.
             "5.0" -> SCALE_FACTOR
 ), seed = 10).drop("ratingId")
 
-println("Cuenta de filas del conjunto de entrenamiento: " + training.count())
+println("Cuenta de filas en conjunto de entrenamiento: " + training.count())
 
-val test = dfCDsVinylTransformado.except(training)
+// Limpieza: Dejar solo la calificación más reciente que el usuario hizo a determinado item
+training.createOrReplaceTempView("training")
 
-test.write.mode("overwrite").csv(PATH + "conjunto-test")
-println("Conjunto de test guardado")
+training = spark.sql("""
+WITH CTE AS (
+  SELECT
+    *,
+    ROW_NUMBER() OVER (PARTITION BY userId, itemId ORDER BY timestamp DESC) AS rating_order
+  FROM training
+)
+SELECT * FROM CTE WHERE rating_order = 1;
+""").drop("rating_order")
+
+println("Cuenta de filas en conjunto de entrenamiento: " + training.count())
+
+// val test = dfCDsVinylTransformado.
+//     except(training).
+//     select("itemId", "userId", "rating")
+// test.write.mode("overwrite").csv(PATH + "conjunto-test")
+// println("Conjunto de test guardado")
+
+training = training.select("itemId", "userId", "rating")
 
 // ----------------------------------------------------------------------------------------
 // Validación cruzada
@@ -250,35 +276,30 @@ val als = new ALS().
 //val paramGrid = new ParamGridBuilder().addGrid(als.rank, Array(2,3,5)).addGrid(als.regParam, Array(0.01, 0.1,0.2)).addGrid(als.maxIter, Array(5,7,10)).build()
 val paramGrid = new ParamGridBuilder().
     addGrid(als.rank, Array(2, 3)).
+    addGrid(als.rank, Array(2)).
     addGrid(als.regParam, Array(0.01, 0.1)).
     addGrid(als.maxIter, Array(5, 7)).
     addGrid(als.alpha, Array(0.01)).
     build()
 
 // Creación de evaluador por métrica RMSE
-val evaluator = new RegressionEvaluator()
-evaluator.setMetricName("rmse")
-evaluator.setLabelCol("rating")
-evaluator.setPredictionCol("prediction")
+val evaluator = new RegressionEvaluator().
+    setMetricName("rmse").
+    setLabelCol("rating").
+    setPredictionCol("prediction")
 
 // Creación validador cruzado
 val cv1 = new CrossValidator().
-    setParallelism(4).
     setEstimator(als).
     setEstimatorParamMaps(paramGrid).
     setEvaluator(evaluator).
-    setNumFolds(1)
+    setCollectSubModels(true).
+    setNumFolds(2)
 
 // Inicio validación cruzada
 println(s"Inicio: ${Calendar.getInstance.getTime}")
-
-spark.time {
-    val cvmodel1 = cv1.fit(training)
-}
-
+val cvmodel1 = cv1.fit(training)
 println(s"Fin: ${Calendar.getInstance.getTime}")
-
-val model = als.fit(training)
 
 // ----------------------------------------------------------------------------------------
 // Guardado del mejor modelo
@@ -287,15 +308,15 @@ val model = als.fit(training)
 println("\nGUARDADO DEL MEJOR MODELO")
 
 // Selección de mejor modelo
-val bestModel = cvmodel1.bestModel
-val model = bestModel.asInstanceOf[ALSModel]
+val model = cvmodel1.bestModel.asInstanceOf[ALSModel]
 
-println(s"Mejor valor para 'rank': ${model.rank}")
-println(s"Mejor valor para 'maxIter': ${model.maxIter}")
-println(s"Mejor valor para 'regParam': ${model._java_obj.getRegParam()}")
-println(s"Mejor valor para 'alpha': ${model._java_obj.getAlpha()}")
+println(s"Mejor valor para 'rank': ${model.getRank()}")
+println(s"Mejor valor para 'maxIter': ${model.getMaxIter()}")
+println(s"Mejor valor para 'regParam': ${model.getRegParam()}")
+println(s"Mejor valor para 'alpha': ${model.getAlpha()}")
 
 model.write.overwrite().save(PATH + "modeloALS")
+println("Modelo guardado")
 
 // ----------------------------------------------------------------------------------------
 // Validación del modelo
