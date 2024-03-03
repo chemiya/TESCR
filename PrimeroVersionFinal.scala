@@ -143,6 +143,19 @@ var dfCDsVinylTransformado = dfCDsVinyl.
 println("Conjunto de datos transformado:")
 dfCDsVinylTransformado.show(5)
 
+// Estos son los "diccionarios" que se podrán usar para buscar user e item por sus id respectivos
+dfCDsVinylTransformado.
+    select("user", "userId").
+    distinct().
+    write.mode("overwrite").
+    csv(PATH + "dfUserLookup")
+
+dfCDsVinylTransformado.
+    select("item", "itemId").
+    distinct().
+    write.mode("overwrite").
+    csv(PATH + "dfItemLookup")
+
 // ----------------------------------------------------------------------------------------
 // Creación de conjuntos training y test
 // ----------------------------------------------------------------------------------------
