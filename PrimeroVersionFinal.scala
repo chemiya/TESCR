@@ -14,7 +14,7 @@
     José María Lozano Olmedo
 */
 
-// iniciar sesión como $> spark-shell --driver-memory 4g
+// Arrancar spark-shell como: $ spark-shell --driver-memory 8g --executor-memory 8g --executor-cores 4
 
 // Configuraciones iniciales
 sc.setCheckpointDir("checkpoint")
@@ -33,7 +33,7 @@ import org.apache.spark.sql.SparkSession
 
 // Variables de ruta del archivo de datos
 val PATH = "/home/usuario/Regresion/"
-val ARCHIVO = "CDs_and_Vinyl-500k.csv"
+val ARCHIVO = "CDs_and_Vinyl.csv"
 
 
 // ----------------------------------------------------------------------------------------
@@ -46,7 +46,7 @@ println("\nCARGA DE LOS DATOS")
 // Formato del archivo de datos: item,user,rating,timestamp separados por coma
 
 // timestamp es tipo Int porque su rango no supera el valor máximo posible del tipo de dato: 2147483647 (marca de tiempo del 2038-01-19 04:14:07)
-case class Rating( item: String, user: String, rating: Float, timestamp: Int)
+case class Rating( item: String, user: String, rating: Float, timestamp: Int )
 
 def parseRating(str: String): Rating = {
     val fields = str.split(",")
@@ -135,75 +135,10 @@ indexadores.foreach {
         transform(dfCDsVinyl)
 }
 
-dfCDsVinyl = dfCDsVinyl.
-    withColumn("itemId", col("itemId").cast("Int")).
-    withColumn("userId", col("userId").cast("Int"))
-
-// Estos son los "diccionarios" que se podrán usar para buscar user e item por sus id respectivos
-dfCDsVinyl.
-    select("user", "userId").
-    distinct().
-    write.mode("overwrite").
-    csv(PATH + "dfUserLookup")
-
-dfCDsVinyl.
-    select("item", "itemId").
-    distinct().
-    write.mode("overwrite").
-    csv(PATH + "dfItemLookup")
-
-// NOTA: Si esta transformación va, hay que buscar una opción que no sea ciclo for!!!
-// (p.ej., filtros y agregaciones en Spark o Spark SQL)
-/*
-//algoritmo eliminar opiniones falsas y sesgadas-------------------
-
-println("Comienza comprobacion de los datos de los usuarios")
-val valoresUnicosUsuario = dfCDsVinylTransformado.select("userId").distinct().collect()
-val usuariosDiferentes=valoresUnicosUsuario.length
-var contador=0
-
-//recorro diferentes usuarios
-for (fila <- valoresUnicosUsuario) {
-  println(s"Evaluando datos de: $contador / $usuariosDiferentes")
-  contador=contador+1
-  val valorUnicoDouble = fila.getDouble(0)
-
-  //filtro opiniones de cada usuario
-  val dfFiltrado = dfCDsVinylTransformado.filter(col("userId") === valorUnicoDouble)
-  //cuantas opiniones han hecho
-  val filas=dfFiltrado.count()
-  //desviacion estandar de los timestamp de sus opiniones
-  val desviacionEstandar = dfFiltrado.agg(stddev("timestamp").alias("desviacion_estandar")).collect()(0).getAs[Double]("desviacion_estandar")
-
-
-  //condicional para eliminar datos si cumple condiciones
-  if(desviacionEstandar<31622400 && filas>50){
-    dfCDsVinylTransformado= dfCDsVinylTransformado.filter(col("userId") =!= valorUnicoDouble)
-    val numeroFilas = dfCDsVinylTransformado.count()
-    println(s"Se han eliminado los registros del usuario por no cumplir condicion 1. El número de filas en el DataFrame es: $numeroFilas")
-  }
-
-
-  //cuantas opiniones con cada rating han hecho
-  var cuentaOpiniones=dfFiltrado.groupBy("rating").count().orderBy(desc("count")).withColumnRenamed("count", "cuenta")
-  //convertimos en porcentaje
-  cuentaOpiniones=cuentaOpiniones.select(format_number((col("cuenta") / filas)*100, 2).alias("Resultado"))
-  //porcentaje opiniones rating 5
-  val primerValorPorcentaje = cuentaOpiniones.select("Resultado").first().getAs[String](0)
-  val valorDouble = primerValorPorcentaje.toDouble
-
-  //condicional para eliminar datos si cumple condiciones
-  if(valorDouble>90 && filas>50 ){
-    dfCDsVinylTransformado= dfCDsVinylTransformado.filter(col("userId") =!= valorUnicoDouble)
-    val numeroFilas = dfCDsVinylTransformado.count()
-    println(s"Se han eliminado los registros del usuario por no cumplir condicion 2. El número de filas en el DataFrame es: $numeroFilas")
-  }
-
-}
-*/
-
 var dfCDsVinylTransformado = dfCDsVinyl.
-    select("itemId", "userId", "rating", "timestamp")
+    withColumn("itemId", col("itemId").cast("Int")).
+    withColumn("userId", col("userId").cast("Int")).
+    select("itemId", "item", "userId", "user", "rating", "timestamp")
 
 println("Conjunto de datos transformado:")
 dfCDsVinylTransformado.show(5)
@@ -213,9 +148,6 @@ dfCDsVinylTransformado.show(5)
 // ----------------------------------------------------------------------------------------
 
 println("\nCREACIÓN DE CONJUNTOS TRAINING Y TEST")
-
-// Antes:
-// val Array(training, test) = dfCDsVinylTransformado.randomSplit(Array(0.8, 0.2))
 
 // Factor de escala para estratificar el conjunto de entrenamiento
 
@@ -235,9 +167,78 @@ var training = dfCDsVinylTransformado.
             "5.0" -> SCALE_FACTOR
 ), seed = 10).drop("ratingId")
 
-println("Cuenta de filas en conjunto de entrenamiento: " + training.count())
+// Generamos el dataset de test eliminando los elementos de training
+val test = dfCDsVinylTransformado.except(training)
+println("Registros test: " + test.count())
 
-// Limpieza: Dejar solo la calificación más reciente que el usuario hizo a determinado item
+test.write.mode("overwrite").csv(PATH + "conjunto-test")
+println("Conjunto de test guardado")
+
+println("Registros training antes de limpieza: " + training.count())
+
+// Limpieza - Estrategias 1 y 2
+// Próximos pasos en el miniproyecto: Encontrar una forma óptima de hacer el algoritmo,
+// con implementación en Spark o SQL, por ejemplo.
+
+// println("Comienza comprobación de los datos de los usuarios")
+// val valoresUnicosUsuario = training.select("userId").distinct().collect()
+// val usuariosDiferentes=valoresUnicosUsuario.length
+// var contador=0
+
+// // Recorrido diferentes usuarios
+// for (fila <- valoresUnicosUsuario) {
+//     println(s"Evaluando datos de: $contador / $usuariosDiferentes")
+//     contador=contador+1
+//     val valorUnicoDouble = fila.getDouble(0)
+
+//     // Filtro opiniones de cada usuario
+//     val dfFiltrado = training.filter(col("userId") === valorUnicoDouble)
+
+//     // Cuántas opiniones han hecho
+//     val filas=dfFiltrado.count()
+
+//     // Desviación estándar de los timestamp de sus opiniones
+//     val desviacionEstandar = dfFiltrado.
+//         agg(stddev("timestamp").
+//         alias("desviacion_estandar")).
+//         collect()(0).
+//         getAs[Double]("desviacion_estandar")
+
+//     // Condicional para eliminar datos si cumple condiciones
+//     if(desviacionEstandar < 31622400 && filas > 50) {
+//         training = training.filter(col("userId") =!= valorUnicoDouble)
+//         val numeroFilas = training.count()
+//         println(s"Se han eliminado los registros del usuario por no cumplir condición 1. El número de filas en el DataFrame es: $numeroFilas")
+//     }
+
+//     // Cuántas opiniones con cada rating han hecho
+//     var cuentaOpiniones = dfFiltrado.
+//         groupBy("rating").
+//         count().
+//         orderBy(desc("count")).
+//         withColumnRenamed("count", "cuenta")
+
+//     // Convertimos en porcentaje
+//     cuentaOpiniones = cuentaOpiniones.
+//         select( format_number((col("cuenta") / filas) * 100, 2).alias("Resultado") )
+
+//     // Porcentaje opiniones rating 5
+//     val primerValorPorcentaje = cuentaOpiniones.
+//         select("Resultado").
+//         first().
+//         getAs[String](0)
+
+//     val valorDouble = primerValorPorcentaje.toDouble
+
+//     // Condicional para eliminar datos si cumple condiciones
+//     if(valorDouble > 90 && filas > 50) {
+//         training = training.filter( col("userId") =!= valorUnicoDouble )
+//         val numeroFilas = training.count()
+//         println(s"Se han eliminado los registros del usuario por no cumplir condicion 2. El número de filas en el DataFrame es: $numeroFilas")
+//     }
+// }
+
+// Limpieza - Estrategia 3: Dejar solo la calificación más reciente que el usuario hizo a determinado ítem
 training.createOrReplaceTempView("training")
 
 training = spark.sql("""
@@ -250,14 +251,9 @@ WITH CTE AS (
 SELECT * FROM CTE WHERE rating_order = 1;
 """).drop("rating_order")
 
-println("Cuenta de filas en conjunto de entrenamiento: " + training.count())
+println("Registros training después de limpieza: " + training.count())
 
-val test = dfCDsVinylTransformado.
-    except(training).
-    select("itemId", "userId", "rating")
-test.write.mode("overwrite").csv(PATH + "conjunto-test")
-println("Conjunto de test guardado")
-
+// Eliminación de columnas no usadas en conjunto de training
 training = training.select("itemId", "userId", "rating")
 
 // ----------------------------------------------------------------------------------------
@@ -293,7 +289,6 @@ val cv1 = new CrossValidator().
     setEstimator(als).
     setEstimatorParamMaps(paramGrid).
     setEvaluator(evaluator).
-    setCollectSubModels(true).
     setNumFolds(2).
     setParallelism(2)
 
@@ -311,7 +306,13 @@ println("\nGUARDADO DEL MEJOR MODELO")
 // Selección de mejor modelo
 val model = cvmodel1.bestModel.asInstanceOf[ALSModel]
 
-// println(s"Mejor valor para 'rank': ${model.getRank()}")
+println(s"Mejor valor para 'rank': ${model.rank}")
+// Las otras métricas no pueden ser visualizadas por el bestModel ser instancia de ALSModel y no de ALS
+// https://stackoverflow.com/a/38048635
+// En la documentación vemos que no existen getters de hiperparámetros
+// https://spark.apache.org/docs/3.5.0/api/scala/org/apache/spark/ml/recommendation/ALSModel.html
+// Adicionalmente, la sentencia "cvmodel1.bestModel.asInstanceOf[ALS]" da error.
+
 // println(s"Mejor valor para 'maxIter': ${model.getMaxIter()}")
 // println(s"Mejor valor para 'regParam': ${model.getRegParam()}")
 // println(s"Mejor valor para 'alpha': ${model.getAlpha()}")
@@ -324,3 +325,11 @@ println("Modelo guardado")
 // ----------------------------------------------------------------------------------------
 
 println("\nVALIDACIÓN DEL MODELO")
+
+// Configuración de estrategia y generación de predicciones
+model.setColdStartStrategy("drop")
+val predictions = model.transform(training)
+
+// Cálculo del error cuadrático medio
+val rmse = evaluator.evaluate(predictions)
+println(s"Error cuadrático medio: $rmse")
