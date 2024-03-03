@@ -33,7 +33,7 @@ import org.apache.spark.sql.SparkSession
 
 // Variables de ruta del archivo de datos
 val PATH = "/home/usuario/Regresion/"
-val ARCHIVO = "CDs_and_Vinyl-10k.csv"
+val ARCHIVO = "CDs_and_Vinyl-500k.csv"
 
 
 // ----------------------------------------------------------------------------------------
@@ -252,11 +252,11 @@ SELECT * FROM CTE WHERE rating_order = 1;
 
 println("Cuenta de filas en conjunto de entrenamiento: " + training.count())
 
-// val test = dfCDsVinylTransformado.
-//     except(training).
-//     select("itemId", "userId", "rating")
-// test.write.mode("overwrite").csv(PATH + "conjunto-test")
-// println("Conjunto de test guardado")
+val test = dfCDsVinylTransformado.
+    except(training).
+    select("itemId", "userId", "rating")
+test.write.mode("overwrite").csv(PATH + "conjunto-test")
+println("Conjunto de test guardado")
 
 training = training.select("itemId", "userId", "rating")
 
@@ -294,7 +294,8 @@ val cv1 = new CrossValidator().
     setEstimatorParamMaps(paramGrid).
     setEvaluator(evaluator).
     setCollectSubModels(true).
-    setNumFolds(2)
+    setNumFolds(2).
+    setParallelism(2)
 
 // Inicio validación cruzada
 println(s"Inicio: ${Calendar.getInstance.getTime}")
@@ -310,10 +311,10 @@ println("\nGUARDADO DEL MEJOR MODELO")
 // Selección de mejor modelo
 val model = cvmodel1.bestModel.asInstanceOf[ALSModel]
 
-println(s"Mejor valor para 'rank': ${model.getRank()}")
-println(s"Mejor valor para 'maxIter': ${model.getMaxIter()}")
-println(s"Mejor valor para 'regParam': ${model.getRegParam()}")
-println(s"Mejor valor para 'alpha': ${model.getAlpha()}")
+// println(s"Mejor valor para 'rank': ${model.getRank()}")
+// println(s"Mejor valor para 'maxIter': ${model.getMaxIter()}")
+// println(s"Mejor valor para 'regParam': ${model.getRegParam()}")
+// println(s"Mejor valor para 'alpha': ${model.getAlpha()}")
 
 model.write.overwrite().save(PATH + "modeloALS")
 println("Modelo guardado")
