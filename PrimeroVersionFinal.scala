@@ -282,13 +282,11 @@ val als = new ALS().
     setRatingCol("rating")
 
 // Creación de "grid" de hiperparámetros
-//val paramGrid = new ParamGridBuilder().addGrid(als.rank, Array(2,3,5)).addGrid(als.regParam, Array(0.01, 0.1,0.2)).addGrid(als.maxIter, Array(5,7,10)).build()
 val paramGrid = new ParamGridBuilder().
-    addGrid(als.rank, Array(2, 3)).
-    addGrid(als.rank, Array(2)).
-    addGrid(als.regParam, Array(0.01, 0.1)).
-    addGrid(als.maxIter, Array(5, 7)).
-    addGrid(als.alpha, Array(0.01)).
+    addGrid(als.rank, Array(10, 20, 50)).
+    addGrid(als.regParam, Array(0.01, 0.1, 0.5)).
+    addGrid(als.maxIter, Array(10, 15, 20)).
+    addGrid(als.alpha, Array(0.01, 0.1,0.5)).
     build()
 
 // Creación de evaluador por métrica RMSE
