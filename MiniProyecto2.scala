@@ -20,18 +20,10 @@
 
 // Importación de módulos a usar
 
-import org.apache.spark.rdd.RDD
+
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.feature.StringIndexer
 import org.apache.spark.ml.feature.VectorAssembler
-import org.apache.spark.util.IntParam
-import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.functions._
-import org.apache.spark.sql._
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.types._
-import org.apache.log4j._
-import org.apache.spark.sql.functions.to_timestamp
 import org.apache.spark.ml.regression.LinearRegression
 import org.apache.spark.ml.evaluation.RegressionEvaluator
 import org.apache.spark.ml.feature.OneHotEncoder
@@ -39,30 +31,33 @@ import org.apache.spark.ml.regression.{GBTRegressionModel, GBTRegressor}
 import org.apache.spark.ml.regression.DecisionTreeRegressor
 import org.apache.spark.ml.regression.RandomForestRegressor
 
-
-
-val PATH="/home/usuario/Regresion/MiniProyecto2/"
-val ARCHIVO="hour.csv"
-
 // ----------------------------------------------------------------------------------------
 // Carga de los datos
 // ----------------------------------------------------------------------------------------
 
 println("\nCARGA DE LOS DATOS")
 
+val PATH="/home/usuario/Regresion/MiniProyecto2/"
+val ARCHIVO="hour.csv"
+
 
 val bikeDF = spark.read.format("csv").option("inferSchema",true).option("header",true).load(PATH+ARCHIVO)
 bikeDF.show(10)
+
+
+// ----------------------------------------------------------------------------------------
+// Exploración de los datos
+// ----------------------------------------------------------------------------------------
+
+println("\nEXPLORACIÓN DE LOS DATOS")
 
 // Definición del esquema de datos
 
 bikeDF.printSchema
 
-
 // Comprobamos que no hay valores nulos
 
 bikeDF.select(bikeDF.columns.map(c => sum(col(c).isNull.cast("int")).alias(c)): _*).show
-
 
 // Estadística de los valores de los atributos
 
@@ -143,99 +138,144 @@ bikeDF.
     withColumnRenamed("count", "cuenta").
     show()	
 
+// ----------------------------------------------------------------------------------------
+// Transformación de los datos
+// ----------------------------------------------------------------------------------------
 
+println("\nTRASNFORMACIÓN DE LOS DATOS")
 
+// Transformación de los atributos categoricos con OneHotEncoder
 
-
-// Transformación de los atributos categoricos
-
-val indexer = Array("season","weathersit").map(c=>new OneHotEncoder().setInputCol(c).setOutputCol(c + "_Vec"))
+val indexer = Array("season","yr","mnth","hr","weekday","weathersit").map(c=>new OneHotEncoder().setInputCol(c).setOutputCol(c + "_Vec"))
 val pipeline = new Pipeline().setStages(indexer)
-val df_r = pipeline.fit(bikeDF).transform(bikeDF).drop("season","weathersit")
+val bikeDF_trans = pipeline.fit(bikeDF).transform(bikeDF).drop("season","yr","mnth","hr","weekday","weathersit")
 
 
+// ----------------------------------------------------------------------------------------
+// Partición de los datos en train y test
+// ----------------------------------------------------------------------------------------
 
+println("\nPARTICIÓN DE LOS DATOS")
 
 val splitSeed = 123
-val Array(train,train_test) = df_r.randomSplit(Array(0.7,0.3),splitSeed)
+val Array(train,test) = bikeDF_trans.randomSplit(Array(0.7,0.3),splitSeed)
 
-//Generate Feature Column
-val feature = Array("holiday","workingday","weekday","temp","atemp","hum","windspeed","season_Vec","weathersit_Vec","yr","mnth","hr")
-//Assemble Feature Column
+//Selección y ensamblado de columna feature
+
+val feature = Array("holiday","workingday","temp","atemp","hum","windspeed","season_Vec","yr_Vec","mnth_Vec","hr_Vec","weekday_Vec","weathersit_Vec")
 val assembler = new VectorAssembler().setInputCols(feature).setOutputCol("features")
 
 
-//Linear Regression Model
+// ----------------------------------------------------------------------------------------
+// Selección de mejor modelo
+// ----------------------------------------------------------------------------------------
+
+println("\nSELECCIÓN DE MODELO")
 
 
-//Model Building
+//Modelo de Linear regression
+println("\nMODELO LINEAR REGRESSION")
+
+//Construcción del modelo
 val lr = new LinearRegression().setLabelCol("cnt").setFeaturesCol("features")
  
-//Creating Pipeline
+//Creamos el pipeline
 val pipeline = new Pipeline().setStages(Array(assembler,lr))
  
-//Training Model
+//Entrenamos modelo
 val lrModel = pipeline.fit(train)
-val predictions = lrModel.transform(train_test)
+val predictions = lrModel.transform(test)
  
-//Model Summary
+//Resultado del modelo
 val evaluator = new RegressionEvaluator().setLabelCol("cnt").setPredictionCol("prediction").setMetricName("rmse")
-val rmse = evaluator.evaluate(predictions)
-println("Linear Regression Root Mean Squared Error (RMSE) on train_test data = " + rmse)
+val metricas = evaluator.getMetrics(predictions)
+
+//Algunas métricas
+println(s"MSE: ${metricas.meanSquaredError}")
+println(s"r2: ${metricas.r2}")
+println(s"root MSE: ${metricas.rootMeanSquaredError}")
+println(s"Mean Absolute Error: ${metricas.meanAbsoluteError}")
 
 
 
-//GBT Regressor
+//Modelo GBT Regressor
+println("\nMODELO GBT REGRESSOR")
 
-//Model Building
+//Construcción del modelo
 val gbt = new GBTRegressor().setLabelCol("cnt").setFeaturesCol("features")
  
-//Creating pipeline
+//Creamos el pipeline
 val pipeline = new Pipeline().setStages(Array(assembler,gbt))
  
-//Training Model
+//Entrenamos modelo
 val gbtModel = pipeline.fit(train)
-val predictions = gbtModel.transform(train_test)
+val predictions = gbtModel.transform(test)
  
-//Model Summary
+//Resultado del modelo
 val evaluator = new RegressionEvaluator().setLabelCol("cnt").setPredictionCol("prediction").setMetricName("rmse")
-val rmse = evaluator.evaluate(predictions)
-println("GBT Regressor Root Mean Squared Error (RMSE) on train_test data = " + rmse)
+val metricas = evaluator.getMetrics(predictions)
+
+//Algunas métricas
+println(s"MSE: ${metricas.meanSquaredError}")
+println(s"r2: ${metricas.r2}")
+println(s"root MSE: ${metricas.rootMeanSquaredError}")
+println(s"Mean Absolute Error: ${metricas.meanAbsoluteError}")
 
 
-//Decision Tree Regressor
+//Modelo Decision Tree Regressor
+println("\nMODELO DECISION TREE REGRESSOR")
 
-//Model Building
+//Construcción del modelo
 val dt = new DecisionTreeRegressor().setLabelCol("cnt").setFeaturesCol("features")
  
-//Creating Pipeline
+//Creamos el pipeline
 val pipeline = new Pipeline().setStages(Array(assembler,dt))
  
-//Training Model
+//Entrenamos modelo
 val dtModel = pipeline.fit(train)
-val predictions = dtModel.transform(train_test)
+val predictions = dtModel.transform(test)
  
-//Model Summary
+//Resultado del modelo
 val evaluator = new RegressionEvaluator().setLabelCol("cnt").setPredictionCol("prediction").setMetricName("rmse")
-val rmse = evaluator.evaluate(predictions)
-println("Decision Tree Regressor Root Mean Squared Error (RMSE) on train_test data = " + rmse)
+val metricas = evaluator.getMetrics(predictions)
+
+//Algunas métricas
+println(s"MSE: ${metricas.meanSquaredError}")
+println(s"r2: ${metricas.r2}")
+println(s"root MSE: ${metricas.rootMeanSquaredError}")
+println(s"Mean Absolute Error: ${metricas.meanAbsoluteError}")
 
 
-//Random Forest Regressor
+//Modelo Random Forest Regressor
+println("\nMODELO RANDOM FOREST REGRESSOR")
 
-//Model Building
+//Construcción del modelo
 val rf = new RandomForestRegressor().setLabelCol("cnt").setFeaturesCol("features")
  
-//Creating Pipeline
+//Creamos el pipeline
 val pipeline = new Pipeline().setStages(Array(assembler,rf))
  
-//Training Model
+//Entrenamos modelo
 val rfModel = pipeline.fit(train)
-val predictions = rfModel.transform(train_test)
+val predictions = rfModel.transform(test)
  
-//Model Summary
+//Resultado del modelo
 val evaluator = new RegressionEvaluator().setLabelCol("cnt").setPredictionCol("prediction").setMetricName("rmse")
-val rmse = evaluator.evaluate(predictions)
-println("Random Forest Regressor Root Mean Squared Error (RMSE) on train_test data = " + rmse)
+val metricas = evaluator.getMetrics(predictions)
 
+//Algunas métricas
+println(s"MSE: ${metricas.meanSquaredError}")
+println(s"r2: ${metricas.r2}")
+println(s"root MSE: ${metricas.rootMeanSquaredError}")
+println(s"Mean Absolute Error: ${metricas.meanAbsoluteError}")
+
+// ----------------------------------------------------------------------------------------
+// Guardamos el mejor modelo (GBT Regressor)
+// ----------------------------------------------------------------------------------------
+
+println("\nGUARDAMOS EL MEJOR MODELO (GBT Regressor)")
+
+
+//Guardamos el mejor modelo
+gbtModel.write.overwrite().save(PATH+"/modelo")
 
