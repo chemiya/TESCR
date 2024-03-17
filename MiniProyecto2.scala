@@ -30,6 +30,13 @@ import org.apache.spark.ml.feature.OneHotEncoder
 import org.apache.spark.ml.regression.{GBTRegressionModel, GBTRegressor}
 import org.apache.spark.ml.regression.DecisionTreeRegressor
 import org.apache.spark.ml.regression.RandomForestRegressor
+import org.apache.spark.ml.linalg.Vectors
+
+
+
+import org.apache.spark.ml.regression.LinearRegressionModel
+import org.apache.spark.ml.regression.LinearRegressionSummary
+import org.apache.spark.ml.evaluation.RegressionEvaluator 
 
 // ----------------------------------------------------------------------------------------
 // Carga de los datos
@@ -42,7 +49,12 @@ val ARCHIVO="hour.csv"
 
 
 val bikeDF = spark.read.format("csv").option("inferSchema",true).option("header",true).load(PATH+ARCHIVO)
+println("Datos cargados:")
 bikeDF.show(10)
+
+
+
+
 
 
 // ----------------------------------------------------------------------------------------
@@ -138,6 +150,27 @@ bikeDF.
     withColumnRenamed("count", "cuenta").
     show()	
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // ----------------------------------------------------------------------------------------
 // Transformación de los datos
 // ----------------------------------------------------------------------------------------
@@ -149,6 +182,27 @@ println("\nTRASNFORMACIÓN DE LOS DATOS")
 val indexer = Array("season","yr","mnth","hr","weekday","weathersit").map(c=>new OneHotEncoder().setInputCol(c).setOutputCol(c + "_Vec"))
 val pipeline = new Pipeline().setStages(indexer)
 val bikeDF_trans = pipeline.fit(bikeDF).transform(bikeDF).drop("season","yr","mnth","hr","weekday","weathersit")
+bikeDF_trans.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // ----------------------------------------------------------------------------------------
@@ -166,11 +220,40 @@ val feature = Array("holiday","workingday","temp","atemp","hum","windspeed","sea
 val assembler = new VectorAssembler().setInputCols(feature).setOutputCol("features")
 
 
+
+
+
+
+
+
+
+
+
 // ----------------------------------------------------------------------------------------
 // Selección de mejor modelo
 // ----------------------------------------------------------------------------------------
 
 println("\nSELECCIÓN DE MODELO")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 //Modelo de Linear regression
@@ -198,6 +281,18 @@ println(s"Mean Absolute Error: ${metricas.meanAbsoluteError}")
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 //Modelo GBT Regressor
 println("\nMODELO GBT REGRESSOR")
 
@@ -222,6 +317,18 @@ println(s"root MSE: ${metricas.rootMeanSquaredError}")
 println(s"Mean Absolute Error: ${metricas.meanAbsoluteError}")
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 //Modelo Decision Tree Regressor
 println("\nMODELO DECISION TREE REGRESSOR")
 
@@ -244,6 +351,23 @@ println(s"MSE: ${metricas.meanSquaredError}")
 println(s"r2: ${metricas.r2}")
 println(s"root MSE: ${metricas.rootMeanSquaredError}")
 println(s"Mean Absolute Error: ${metricas.meanAbsoluteError}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 //Modelo Random Forest Regressor
@@ -278,4 +402,112 @@ println("\nGUARDAMOS EL MEJOR MODELO (GBT Regressor)")
 
 //Guardamos el mejor modelo
 gbtModel.write.overwrite().save(PATH+"/modelo")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Leo los datos y creo un DataFrame: podemos cachearlo
+ val data = sc.textFile("hour.csv") 
+ val filtData = data.filter(line => !line.contains("instant") ) 
+val parsedData = filtData.map(line => {
+  val parts = line.split(",")
+  val features=parts.slice(2, 14).map(_.toDouble)
+  val label=parts(16).toDouble
+  (label, Vectors.dense(features.slice(0, 12)))
+}).toDF("label", "features").cache()
+
+parsedData.show()
+
+
+
+
+
+
+
+
+
+
+
+// Separar datos 
+val sets = parsedData.randomSplit(Array(0.8, 0.2),seed=11L) 
+val trainingSet = sets(0).cache() 
+val testSet = sets(1) 
+
+
+
+
+// Modelo 1: intercepto y normal
+val lr = new LinearRegression() 
+  lr.setFitIntercept(true) 
+  lr.setSolver("normal") 
+val lrModel = lr.fit(trainingSet) 
+println(s"Coefficients: ${lrModel.coefficients} Intercept: ${lrModel.intercept}") 
+// Resumen
+val lrSummary = lrModel.summary 
+lrSummary.pValues.foreach(println) 
+//Medidas
+println(s"MSE: ${lrSummary.meanSquaredError}") 
+println(s"r2: ${lrSummary.r2}") 
+println(s"root MSE: ${lrSummary.rootMeanSquaredError}") 
+println(s"Mean Absolute Error: ${lrSummary.meanAbsoluteError}") 
+val testPredicted = lrModel.transform(testSet) 
+val eval = new RegressionEvaluator().setMetricName("r2") 
+val testR2 = eval.evaluate(testPredicted)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//Modelo 2: intercepto y lbfgs con 100 iteracciones max
+val lr1 = new LinearRegression()
+    lr1.setMaxIter(100)
+    lr1.setFitIntercept(true)
+    lr1.setSolver("l-bfgs")
+val lr1Model = lr1.fit(trainingSet)
+println(s"Coefficients: ${lr1Model.coefficients} Intercept:${lr1Model.intercept}")
+//Resumen
+val lrSummary1 = lr1Model.summary
+//Medidas
+println(s"MSE: ${lrSummary1.meanSquaredError}") 
+println(s"r2: ${lrSummary1.r2}") 
+println(s"root MSE: ${lrSummary1.rootMeanSquaredError}") 
+println(s"Mean Absolute Error: ${lrSummary1.meanAbsoluteError}") 
+val testPredicted1 = lr1Model.transform(testSet) 
+val eval1 = new RegressionEvaluator().setMetricName("r2") 
+val testR21 = eval1.evaluate(testPredicted1)
+
+
+
+
 
