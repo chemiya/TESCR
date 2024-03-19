@@ -21,7 +21,7 @@
 // Importación de módulos a usar
 
 
-import org.apache.spark.ml.Pipeline
+import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.ml.feature.StringIndexer
 import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.regression.LinearRegression
@@ -31,9 +31,10 @@ import org.apache.spark.ml.regression.{GBTRegressionModel, GBTRegressor}
 import org.apache.spark.ml.regression.DecisionTreeRegressor
 import org.apache.spark.ml.regression.RandomForestRegressor
 import org.apache.spark.ml.linalg.Vectors
+import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
 
-
-
+import org.apache.spark.ml.regression.DecisionTreeRegressionModel
+import org.apache.spark.ml.regression.RandomForestRegressionModel
 import org.apache.spark.ml.regression.LinearRegressionModel
 import org.apache.spark.ml.regression.LinearRegressionSummary
 import org.apache.spark.ml.evaluation.RegressionEvaluator 
@@ -212,12 +213,18 @@ bikeDF_trans.show()
 println("\nPARTICIÓN DE LOS DATOS")
 
 val splitSeed = 123
-val Array(train,test) = bikeDF_trans.randomSplit(Array(0.7,0.3),splitSeed)
+val Array(trainingData,testData) = bikeDF_trans.randomSplit(Array(0.7,0.3),splitSeed)
 
 //Selección y ensamblado de columna feature
 
 val feature = Array("holiday","workingday","temp","atemp","hum","windspeed","season_Vec","yr_Vec","mnth_Vec","hr_Vec","weekday_Vec","weathersit_Vec")
 val assembler = new VectorAssembler().setInputCols(feature).setOutputCol("features")
+
+
+
+
+
+
 
 
 
@@ -256,101 +263,6 @@ println("\nSELECCIÓN DE MODELO")
 
 
 
-//Modelo de Linear regression
-println("\nMODELO LINEAR REGRESSION")
-
-//Construcción del modelo
-val lr = new LinearRegression().setLabelCol("cnt").setFeaturesCol("features")
- 
-//Creamos el pipeline
-val pipeline = new Pipeline().setStages(Array(assembler,lr))
- 
-//Entrenamos modelo
-val lrModel = pipeline.fit(train)
-val predictions = lrModel.transform(test)
- 
-//Resultado del modelo
-val evaluator = new RegressionEvaluator().setLabelCol("cnt").setPredictionCol("prediction").setMetricName("rmse")
-val metricas = evaluator.getMetrics(predictions)
-
-//Algunas métricas
-println(s"MSE: ${metricas.meanSquaredError}")
-println(s"r2: ${metricas.r2}")
-println(s"root MSE: ${metricas.rootMeanSquaredError}")
-println(s"Mean Absolute Error: ${metricas.meanAbsoluteError}")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//Modelo GBT Regressor
-println("\nMODELO GBT REGRESSOR")
-
-//Construcción del modelo
-val gbt = new GBTRegressor().setLabelCol("cnt").setFeaturesCol("features")
- 
-//Creamos el pipeline
-val pipeline = new Pipeline().setStages(Array(assembler,gbt))
- 
-//Entrenamos modelo
-val gbtModel = pipeline.fit(train)
-val predictions = gbtModel.transform(test)
- 
-//Resultado del modelo
-val evaluator = new RegressionEvaluator().setLabelCol("cnt").setPredictionCol("prediction").setMetricName("rmse")
-val metricas = evaluator.getMetrics(predictions)
-
-//Algunas métricas
-println(s"MSE: ${metricas.meanSquaredError}")
-println(s"r2: ${metricas.r2}")
-println(s"root MSE: ${metricas.rootMeanSquaredError}")
-println(s"Mean Absolute Error: ${metricas.meanAbsoluteError}")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//Modelo Decision Tree Regressor
-println("\nMODELO DECISION TREE REGRESSOR")
-
-//Construcción del modelo
-val dt = new DecisionTreeRegressor().setLabelCol("cnt").setFeaturesCol("features")
- 
-//Creamos el pipeline
-val pipeline = new Pipeline().setStages(Array(assembler,dt))
- 
-//Entrenamos modelo
-val dtModel = pipeline.fit(train)
-val predictions = dtModel.transform(test)
- 
-//Resultado del modelo
-val evaluator = new RegressionEvaluator().setLabelCol("cnt").setPredictionCol("prediction").setMetricName("rmse")
-val metricas = evaluator.getMetrics(predictions)
-
-//Algunas métricas
-println(s"MSE: ${metricas.meanSquaredError}")
-println(s"r2: ${metricas.r2}")
-println(s"root MSE: ${metricas.rootMeanSquaredError}")
-println(s"Mean Absolute Error: ${metricas.meanAbsoluteError}")
 
 
 
@@ -370,29 +282,39 @@ println(s"Mean Absolute Error: ${metricas.meanAbsoluteError}")
 
 
 
-//Modelo Random Forest Regressor
-println("\nMODELO RANDOM FOREST REGRESSOR")
 
-//Construcción del modelo
-val rf = new RandomForestRegressor().setLabelCol("cnt").setFeaturesCol("features")
- 
-//Creamos el pipeline
-val pipeline = new Pipeline().setStages(Array(assembler,rf))
- 
-//Entrenamos modelo
-val rfModel = pipeline.fit(train)
-val predictions = rfModel.transform(test)
- 
-//Resultado del modelo
-val evaluator = new RegressionEvaluator().setLabelCol("cnt").setPredictionCol("prediction").setMetricName("rmse")
-val metricas = evaluator.getMetrics(predictions)
 
-//Algunas métricas
-println(s"MSE: ${metricas.meanSquaredError}")
-println(s"r2: ${metricas.r2}")
-println(s"root MSE: ${metricas.rootMeanSquaredError}")
-println(s"Mean Absolute Error: ${metricas.meanAbsoluteError}")
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
 // ----------------------------------------------------------------------------------------
 // Guardamos el mejor modelo (GBT Regressor)
 // ----------------------------------------------------------------------------------------
@@ -405,68 +327,7 @@ gbtModel.write.overwrite().save(PATH+"/modelo")
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// Leo los datos y creo un DataFrame: podemos cachearlo
- val data = sc.textFile("hour.csv") 
- val filtData = data.filter(line => !line.contains("instant") ) 
-val parsedData = filtData.map(line => {
-  val parts = line.split(",")
-  val features=parts.slice(2, 14).map(_.toDouble)
-  val label=parts(16).toDouble
-  (label, Vectors.dense(features.slice(0, 12)))
-}).toDF("label", "features").cache()
-
-parsedData.show()
-
-
-
-
-
-
-
-
-
-
-
-// Separar datos 
-val sets = parsedData.randomSplit(Array(0.8, 0.2),seed=11L) 
-val trainingSet = sets(0).cache() 
-val testSet = sets(1) 
-
-
-
-
-// Modelo 1: intercepto y normal
-val lr = new LinearRegression() 
-  lr.setFitIntercept(true) 
-  lr.setSolver("normal") 
-val lrModel = lr.fit(trainingSet) 
-println(s"Coefficients: ${lrModel.coefficients} Intercept: ${lrModel.intercept}") 
-// Resumen
-val lrSummary = lrModel.summary 
-lrSummary.pValues.foreach(println) 
-//Medidas
-println(s"MSE: ${lrSummary.meanSquaredError}") 
-println(s"r2: ${lrSummary.r2}") 
-println(s"root MSE: ${lrSummary.rootMeanSquaredError}") 
-println(s"Mean Absolute Error: ${lrSummary.meanAbsoluteError}") 
-val testPredicted = lrModel.transform(testSet) 
-val eval = new RegressionEvaluator().setMetricName("r2") 
-val testR2 = eval.evaluate(testPredicted)
+*/
 
 
 
@@ -489,25 +350,307 @@ val testR2 = eval.evaluate(testPredicted)
 
 
 
-//Modelo 2: intercepto y lbfgs con 100 iteracciones max
-val lr1 = new LinearRegression()
-    lr1.setMaxIter(100)
-    lr1.setFitIntercept(true)
-    lr1.setSolver("l-bfgs")
-val lr1Model = lr1.fit(trainingSet)
-println(s"Coefficients: ${lr1Model.coefficients} Intercept:${lr1Model.intercept}")
-//Resumen
-val lrSummary1 = lr1Model.summary
-//Medidas
-println(s"MSE: ${lrSummary1.meanSquaredError}") 
-println(s"r2: ${lrSummary1.r2}") 
-println(s"root MSE: ${lrSummary1.rootMeanSquaredError}") 
-println(s"Mean Absolute Error: ${lrSummary1.meanAbsoluteError}") 
-val testPredicted1 = lr1Model.transform(testSet) 
-val eval1 = new RegressionEvaluator().setMetricName("r2") 
-val testR21 = eval1.evaluate(testPredicted1)
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+//Validacion cruzada con evaluacion de parametros sobre linearRegression
+
+
+// Definir el modelo de regresión lineal
+val lr = new LinearRegression()
+  .setLabelCol("cnt")
+  .setFeaturesCol("features")
+
+// Crear el pipeline
+val pipeline = new Pipeline()
+  .setStages(Array(assembler, lr))
+
+
+
+// Definir el grid de parámetros
+val paramGrid = new ParamGridBuilder().addGrid(lr.regParam, Array(0.1, 0.01)).addGrid(lr.elasticNetParam, Array(0.0, 0.5, 1.0)).build()
+
+// Definir el evaluador de regresión
+val evaluator = new RegressionEvaluator()
+  .setLabelCol("cnt")
+  .setPredictionCol("prediction")
+  .setMetricName("rmse")
+
+// Definir el validador cruzado
+val cv = new CrossValidator()
+  .setEstimator(pipeline)
+  .setEvaluator(evaluator)
+  .setEstimatorParamMaps(paramGrid)
+  .setNumFolds(5) // Número de pliegues para la validación cruzada
+
+// Ajustar el modelo utilizando el conjunto de entrenamiento
+val cvModel = cv.fit(trainingData)
+
+// Evaluar el modelo en el conjunto de prueba
+val predictions = cvModel.transform(testData)
+val rmse = evaluator.evaluate(predictions)
+
+
+
+
+// Imprimir los parámetros del mejor modelo
+val bestModel = cvModel.bestModel.asInstanceOf[PipelineModel]
+val lrModel = bestModel.stages(1).asInstanceOf[LinearRegressionModel]
+println(s"Best model parameters: regParam = ${lrModel.getRegParam}, elasticNetParam = ${lrModel.getElasticNetParam}")
+
+val metricas = evaluator.getMetrics(predictions)
+//Algunas métricas
+println(s"MSE: ${metricas.meanSquaredError}")
+println(s"r2: ${metricas.r2}")
+println(s"root MSE: ${metricas.rootMeanSquaredError}")
+println(s"Mean Absolute Error: ${metricas.meanAbsoluteError}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//Validacion cruzada con evaluacion de parametros sobre GBTRegressor
+// Definir el modelo GBTRegressor
+val gbt = new GBTRegressor()
+  .setLabelCol("cnt")
+  .setFeaturesCol("features")
+
+// Crear el pipeline
+val pipeline1 = new Pipeline()
+  .setStages(Array(assembler, gbt))
+
+
+
+// Definir el grid de parámetros
+val paramGrid1 = new ParamGridBuilder().addGrid(gbt.maxDepth, Array(5, 10)).addGrid(gbt.maxIter, Array(10, 20)).build()
+
+// Definir el evaluador de regresión
+val evaluator1 = new RegressionEvaluator()
+  .setLabelCol("cnt")
+  .setPredictionCol("prediction")
+  .setMetricName("rmse")
+
+// Definir el validador cruzado
+val cv1 = new CrossValidator()
+  .setEstimator(pipeline1)
+  .setEvaluator(evaluator1)
+  .setEstimatorParamMaps(paramGrid1)
+  .setNumFolds(5) // Número de pliegues para la validación cruzada
+
+// Ajustar el modelo utilizando el conjunto de entrenamiento
+val cvModel1 = cv1.fit(trainingData)
+
+// Evaluar el modelo en el conjunto de prueba
+val predictions1 = cvModel1.transform(testData)
+val rmse1 = evaluator1.evaluate(predictions1)
+
+
+
+// Imprimir los parámetros del mejor modelo
+val bestModel1 = cvModel1.bestModel.asInstanceOf[PipelineModel]
+val gbtModel = bestModel1.stages(1).asInstanceOf[GBTRegressionModel]
+println(s"Best model parameters: maxDepth = ${gbtModel.getMaxDepth}, maxIter = ${gbtModel.getMaxIter}")
+
+
+
+val metricas1 = evaluator1.getMetrics(predictions1)
+//Algunas métricas
+println(s"MSE: ${metricas1.meanSquaredError}")
+println(s"r2: ${metricas1.r2}")
+println(s"root MSE: ${metricas1.rootMeanSquaredError}")
+println(s"Mean Absolute Error: ${metricas1.meanAbsoluteError}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//Validacion cruzada con evaluacion de parametros sobre RandomForest
+val rf = new RandomForestRegressor()
+  .setLabelCol("cnt")
+  .setFeaturesCol("features")
+
+// Crear el pipeline
+val pipeline3 = new Pipeline()
+  .setStages(Array(assembler, rf))
+
+
+
+// Definir el grid de parámetros
+val paramGrid3 = new ParamGridBuilder().addGrid(rf.maxDepth, Array(5, 10)).addGrid(rf.numTrees, Array(10, 20)).build()
+
+// Definir el evaluador de regresión
+val evaluator3 = new RegressionEvaluator()
+  .setLabelCol("cnt")
+  .setPredictionCol("prediction")
+  .setMetricName("rmse")
+
+// Definir el validador cruzado
+val cv3 = new CrossValidator()
+  .setEstimator(pipeline3)
+  .setEvaluator(evaluator3)
+  .setEstimatorParamMaps(paramGrid3)
+  .setNumFolds(5) // Número de pliegues para la validación cruzada
+
+// Ajustar el modelo utilizando el conjunto de entrenamiento
+val cvModel3 = cv3.fit(trainingData)
+
+// Evaluar el modelo en el conjunto de prueba
+val predictions3 = cvModel3.transform(testData)
+val rmse3 = evaluator3.evaluate(predictions3)
+
+
+
+// Imprimir los parámetros del mejor modelo
+val bestModel3 = cvModel3.bestModel.asInstanceOf[PipelineModel]
+val rfModel = bestModel3.stages(1).asInstanceOf[RandomForestRegressionModel]
+println(s"Best model parameters: maxDepth = ${rfModel.getMaxDepth}, numTrees = ${rfModel.getNumTrees}")
+
+val metricas3 = evaluator3.getMetrics(predictions3)
+//Algunas métricas
+println(s"MSE: ${metricas3.meanSquaredError}")
+println(s"r2: ${metricas3.r2}")
+println(s"root MSE: ${metricas3.rootMeanSquaredError}")
+println(s"Mean Absolute Error: ${metricas3.meanAbsoluteError}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//Validacion cruzada con evaluacion de parametros sobre DecisionTreeRegressor
+val dt = new DecisionTreeRegressor()
+  .setLabelCol("cnt")
+  .setFeaturesCol("features")
+
+// Crear el pipeline
+val pipeline2 = new Pipeline()
+  .setStages(Array(assembler, dt))
+
+
+
+// Definir el grid de parámetros
+val paramGrid2 = new ParamGridBuilder().addGrid(dt.maxDepth, Array(5, 10)).addGrid(dt.maxBins, Array(32, 64)).build()
+
+// Definir el evaluador de regresión
+val evaluator2 = new RegressionEvaluator()
+  .setLabelCol("cnt")
+  .setPredictionCol("prediction")
+  .setMetricName("rmse")
+
+// Definir el validador cruzado
+val cv2 = new CrossValidator()
+  .setEstimator(pipeline2)
+  .setEvaluator(evaluator2)
+  .setEstimatorParamMaps(paramGrid2)
+  .setNumFolds(5) // Número de pliegues para la validación cruzada
+
+// Ajustar el modelo utilizando el conjunto de entrenamiento
+val cvModel2 = cv2.fit(trainingData)
+
+// Evaluar el modelo en el conjunto de prueba
+val predictions2 = cvModel2.transform(testData)
+val rmse2 = evaluator2.evaluate(predictions2)
+
+
+
+// Imprimir los parámetros del mejor modelo
+val bestModel2 = cvModel2.bestModel.asInstanceOf[PipelineModel]
+val dtModel = bestModel2.stages(1).asInstanceOf[DecisionTreeRegressionModel]
+println(s"Best model parameters: maxDepth = ${dtModel.getMaxDepth}, maxBins = ${dtModel.getMaxBins}")
+
+
+
+val metricas2 = evaluator2.getMetrics(predictions2)
+//Algunas métricas
+println(s"MSE: ${metricas2.meanSquaredError}")
+println(s"r2: ${metricas2.r2}")
+println(s"root MSE: ${metricas2.rootMeanSquaredError}")
+println(s"Mean Absolute Error: ${metricas2.meanAbsoluteError}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+println(s"RMSe en el conjunto de test del modelo con los mejores parametros para LinearRegression: $rmse")
+println(s"RMSe en el conjunto de test del modelo con los mejores parametros para GBTRegressor: $rmse1")
+println(s"RMSe en el conjunto de test del modelo con los mejores parametros para DecisionTreeRegressor: $rmse2")
+println(s"RMSe en el conjunto de test del modelo con los mejores parametros para RandomForestRegressor: $rmse3")
