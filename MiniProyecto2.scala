@@ -159,6 +159,28 @@ bikeDF.
 
 
 
+//Eliminar atributos 
+
+val columnasAEliminar = Seq("instant", "dteday", "atemp", "windspeed", "casual", "registered")
+val nuevoDF = bikeDF.drop(columnasAEliminar: _*)
+nuevoDF.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -176,15 +198,17 @@ bikeDF.
 // Transformación de los datos
 // ----------------------------------------------------------------------------------------
 
+
+/*
 println("\nTRASNFORMACIÓN DE LOS DATOS")
 
 // Transformación de los atributos categoricos con OneHotEncoder
 
 val indexer = Array("season","yr","mnth","hr","weekday","weathersit").map(c=>new OneHotEncoder().setInputCol(c).setOutputCol(c + "_Vec"))
 val pipeline = new Pipeline().setStages(indexer)
-val bikeDF_trans = pipeline.fit(bikeDF).transform(bikeDF).drop("season","yr","mnth","hr","weekday","weathersit")
+val bikeDF_trans = pipeline.fit(nuevoDF).transform(nuevoDF).drop("season","yr","mnth","hr","weekday","weathersit")
 bikeDF_trans.show()
-
+*/
 
 
 
@@ -213,11 +237,13 @@ bikeDF_trans.show()
 println("\nPARTICIÓN DE LOS DATOS")
 
 val splitSeed = 123
-val Array(trainingData,testData) = bikeDF_trans.randomSplit(Array(0.7,0.3),splitSeed)
+val Array(trainingData,testData) = nuevoDF.randomSplit(Array(0.7,0.3),splitSeed)
 
 //Selección y ensamblado de columna feature
 
-val feature = Array("holiday","workingday","temp","atemp","hum","windspeed","season_Vec","yr_Vec","mnth_Vec","hr_Vec","weekday_Vec","weathersit_Vec")
+//val feature = Array("holiday","workingday","temp","hum","season_Vec","yr_Vec","mnth_Vec","hr_Vec","weekday_Vec","weathersit_Vec")
+val feature = Array("holiday","workingday","temp","hum","season","yr","mnth","hr","weekday","weathersit")
+
 val assembler = new VectorAssembler().setInputCols(feature).setOutputCol("features")
 
 
@@ -654,3 +680,6 @@ println(s"RMSe en el conjunto de test del modelo con los mejores parametros para
 println(s"RMSe en el conjunto de test del modelo con los mejores parametros para GBTRegressor: $rmse1")
 println(s"RMSe en el conjunto de test del modelo con los mejores parametros para DecisionTreeRegressor: $rmse2")
 println(s"RMSe en el conjunto de test del modelo con los mejores parametros para RandomForestRegressor: $rmse3")
+
+
+
