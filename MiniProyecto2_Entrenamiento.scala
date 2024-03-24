@@ -80,6 +80,7 @@ bikeDF.describe("temp").show()
 bikeDF.describe("atemp").show()
 bikeDF.describe("hum").show()
 bikeDF.describe("windspeed").show()
+bikeDF.describe("hr").show()
 
 // Atributos categóricos
 println("Número de alquileres por época del año:")
@@ -106,6 +107,7 @@ bikeDF.
     withColumnRenamed("count", "cuenta").
     show()
 
+//La hora tambien la analizamos asi
 println("Número de alquileres por hora:")
 bikeDF.
     groupBy("hr").
