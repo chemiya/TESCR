@@ -208,3 +208,29 @@ println(s"RMSE en el conjunto de test para mejor modelo de RandomForestRegressor
 println("\nGUARDADO DEL MEJOR MODELO: GBTRegressor")
 
 gbtModel.write.overwrite().save(PATH + "modelo")
+
+// -----------------------------------------------------------------------------
+// Evaluación del mejor modelo
+// -----------------------------------------------------------------------------
+
+println("\nEVALUACIÓN DEL MEJOR MODELO (GBTRegressionModel)")
+
+// Carga del modelo
+val bestModel = GBTRegressionModel.load(PATH + "modelo")
+
+// Definición del evaluador de regresión
+val bestEvaluator = new RegressionEvaluator().
+    setLabelCol("cnt").
+    setPredictionCol("prediction").
+    setMetricName("rmse")
+
+// Evaluación del modelo bajo conjunto de prueba
+val bestPredictions = bestModel.transform(testData)
+val bestRmse = bestEvaluator.evaluate(bestPredictions)
+
+// Visualización de métricas para el mejor modelo
+val bestMetrics = bestEvaluator.getMetrics(bestPredictions)
+println(s"MSE: ${bestMetrics.meanSquaredError}")
+println(s"R²: ${bestMetrics.r2}")
+println(s"root MSE: ${bestMetrics.rootMeanSquaredError}")
+println(s"Mean Absolute Error: ${bestMetrics.meanAbsoluteError}")
