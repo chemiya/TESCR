@@ -233,7 +233,7 @@ val paramGrid = new ParamGridBuilder().
     // addGrid(lr.elasticNetParam, Array(0.0, 0.2, 0.4, 0.6, 0.8, 1.0)).
     // Segunda iteración
     // addGrid(lr.regParam, Array(0.01, 0.21, 0.41, 0.61, 0.81, 1.01)).
-    // addGrid(lr.elasticNetParam, Array(0.8, 0.84, 0.8, 0.92, 0.96, 1.0)).
+    // addGrid(lr.elasticNetParam, Array(0.8, 0.84, 0.88, 0.92, 0.96, 1.0)).
     // Tercera iteración
     addGrid(lr.regParam, Array(0.13, 0.17, 0.21, 0.25, 0.29, 0.33)).
     addGrid(lr.elasticNetParam, Array(0.784, 0.792, 0.8, 0.808, 0.888, 0.968)).
