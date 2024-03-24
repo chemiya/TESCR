@@ -41,7 +41,7 @@ import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
 
 println("\nCARGA DE LOS DATOS")
 
-val PATH = "/home/usuario/Regresion/MiniProyecto2_Sergio/"
+val PATH = "/home/usuario/Regresion/MiniProyecto2/"
 val ARCHIVO = "hour.csv"
 
 val bikeDF = spark.read.format("csv").

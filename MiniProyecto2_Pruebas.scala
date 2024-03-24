@@ -43,7 +43,7 @@ import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
 // -----------------------------------------------------------------------------
 
 // Variables de ruta del archivo de datos
-val PATH = "/home/usuario/Regresion/MiniProyecto2_Sergio/"
+val PATH = "/home/usuario/Regresion/MiniProyecto2/"
 val ARCHIVO_TEST = "testData"
 
 val testRaw = spark.read.format("csv").
