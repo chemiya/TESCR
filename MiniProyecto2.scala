@@ -5,7 +5,7 @@
     Mini-Proyecto 2 : Regresión
 
     Dataset: Washington Bike Sharing Dataset Data Set
-    
+
     Grupo 2:
     Sergio Agudelo Bernal
     Miguel Ángel Collado Alonso
@@ -37,7 +37,7 @@ import org.apache.spark.ml.regression.DecisionTreeRegressionModel
 import org.apache.spark.ml.regression.RandomForestRegressionModel
 import org.apache.spark.ml.regression.LinearRegressionModel
 import org.apache.spark.ml.regression.LinearRegressionSummary
-import org.apache.spark.ml.evaluation.RegressionEvaluator 
+import org.apache.spark.ml.evaluation.RegressionEvaluator
 
 // ----------------------------------------------------------------------------------------
 // Carga de los datos
@@ -110,7 +110,7 @@ bikeDF.
     orderBy(asc("mnth")).
     withColumnRenamed("count", "cuenta").
     show()
-	
+
 println("Número de alquileres por hora:")
 bikeDF.
     groupBy("hr").
@@ -118,7 +118,7 @@ bikeDF.
     orderBy(asc("hr")).
     withColumnRenamed("count", "cuenta").
     show(24)
-	
+
 println("Número de alquileres por día de la semana:")
 bikeDF.
     groupBy("weekday").
@@ -133,7 +133,7 @@ bikeDF.
     count().
     orderBy(asc("weathersit")).
     withColumnRenamed("count", "cuenta").
-    show()	
+    show()
 
 println("Número de alquileres por día festivo:")
 bikeDF.
@@ -141,15 +141,15 @@ bikeDF.
     count().
     orderBy(asc("holiday")).
     withColumnRenamed("count", "cuenta").
-    show()	
-	
+    show()
+
 println("Número de alquileres por día laboral:")
 bikeDF.
     groupBy("workingday").
     count().
     orderBy(asc("workingday")).
     withColumnRenamed("count", "cuenta").
-    show()	
+    show()
 
 
 
@@ -159,7 +159,7 @@ bikeDF.
 
 
 
-//Eliminar atributos 
+//Eliminar atributos
 
 val columnasAEliminar = Seq("instant", "dteday", "atemp", "windspeed", "casual", "registered")
 val nuevoDF = bikeDF.drop(columnasAEliminar: _*)
@@ -680,6 +680,5 @@ println(s"RMSe en el conjunto de test del modelo con los mejores parametros para
 println(s"RMSe en el conjunto de test del modelo con los mejores parametros para GBTRegressor: $rmse1")
 println(s"RMSe en el conjunto de test del modelo con los mejores parametros para DecisionTreeRegressor: $rmse2")
 println(s"RMSe en el conjunto de test del modelo con los mejores parametros para RandomForestRegressor: $rmse3")
-
 
 
